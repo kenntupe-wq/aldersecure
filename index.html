@@ -177,6 +177,11 @@ const PRICING = {
     { id:'n6', label:'NVR 6 Camera', rmr: 69.99 },
     { id:'n8', label:'NVR 8 Camera', rmr: 79.99 },
   ],
+  // Credit-declined fallback — 2 limited options only
+  declined: [
+    { id:'d_nvr4',  label:'NVR 4 Camera',                 rmr: 74.99 },
+    { id:'d_combo', label:'2 Cam NVR + 6 Point Security', rmr: 64.99 },
+  ],
 };
 
 /* ─── Style helpers ─────────────────────────────────────────────────────────── */
@@ -862,12 +867,29 @@ function ProspectApp({ repName }) {
    REP DASHBOARD VIEW
 ════════════════════════════════════════════════════════════════════════════════ */
 
-/* ─── SSN display (last 4 only) ──────────────────────────────────────────────── */
-function MaskedSSN({ ssn }) {
+/* ─── SSN display — rep can toggle full reveal ────────────────────────────────── */
+function RepSSN({ ssn }) {
+  const [show, setShow] = useState(false);
   if(!ssn) return h('span',{style:{color:'rgba(255,255,255,0.2)'}}, '—');
   const digits = ssn.replace(/\D/g,'');
-  const last4   = digits.slice(-4).padStart(4,'*');
-  return h('span',{style:{...mono}}, `●●●-●●-${last4}`);
+  const last4  = digits.slice(-4);
+  const masked = `●●●-●●-${last4}`;
+  return h('div', { style:{ display:'flex', alignItems:'center', gap:8 } },
+    h('span',{ style:{ ...mono, fontSize:13.5, fontWeight:600, color:'#e2e8f0', letterSpacing: show?'normal':'2px' }},
+      show ? ssn : masked
+    ),
+    h('button', {
+      type:'button',
+      onClick:()=>setShow(s=>!s),
+      style:{
+        ...mono, fontSize:9, padding:'3px 8px', borderRadius:5, cursor:'pointer',
+        background: show ? 'rgba(239,68,68,0.12)' : 'rgba(16,185,129,0.1)',
+        border: show ? '1px solid rgba(239,68,68,0.25)' : '1px solid rgba(16,185,129,0.2)',
+        color: show ? 'rgba(239,68,68,0.7)' : 'rgba(16,185,129,0.6)',
+        letterSpacing:'.07em',
+      }
+    }, show ? 'HIDE' : 'REVEAL')
+  );
 }
 
 /* ─── Rep: job detail panel ──────────────────────────────────────────────────── */
@@ -879,12 +901,14 @@ function JobDetail({ job, onClose, onApprove, onDeny }) {
 
   const pkgList  = PRICING[config];
   const selected = pkgList.find(p=>p.id===pkgId) || pkgList[0];
-  const panelMap = { combo:'ConnectPlus', nvr:'No Security Panel' };
-  const configLabel = config==='combo' ? 'Combo (NVR 2-8 Cameras)' : 'NVR — Camera Only';
+  const panelMap = { combo:'ConnectPlus', nvr:'No Security Panel', declined:'No Security Panel' };
+  const configLabelMap = { combo:'Combo (NVR 2-8 Cameras)', nvr:'NVR — Camera Only', declined:'Credit Declined — Limited Options' };
+  const configLabel = configLabelMap[config];
 
   // Reset pkg when config changes
   useEffect(()=>{
-    setPkgId(config==='combo' ? 'c2' : 'n2');
+    const defaults = { combo:'c2', nvr:'n2', declined:'d_nvr4' };
+    setPkgId(defaults[config]);
   },[config]);
 
   async function handleApprove() {
@@ -953,8 +977,8 @@ function JobDetail({ job, onClose, onApprove, onDeny }) {
             `)}
             <div style=${{ display:'flex', gap:14, padding:'11px 15px' }}>
               <div style=${{ ...mono, fontSize:9, color:'rgba(255,255,255,0.22)', letterSpacing:'.1em', minWidth:58, paddingTop:2 }}>SSN</div>
-              <div style=${{ fontSize:13.5, fontWeight:600, color:'#e2e8f0' }}>
-                <${MaskedSSN} ssn=${job.ssn} />
+              <div style=${{ flex:1 }}>
+                <${RepSSN} ssn=${job.ssn} />
               </div>
             </div>
           </div>
@@ -962,27 +986,38 @@ function JobDetail({ job, onClose, onApprove, onDeny }) {
           <!-- Config selector -->
           <div style=${{ marginBottom:16 }}>
             <div style=${{ ...mono, fontSize:9, color:'rgba(255,255,255,0.22)', letterSpacing:'.12em', marginBottom:10 }}>SALES CONFIGURATION</div>
-            <div style=${{ display:'flex', gap:8 }}>
-              ${[['combo','Combo + Security'],['nvr','NVR Only']].map(([val,label])=>html`
+            <div style=${{ display:'flex', gap:6, flexWrap:'wrap' }}>
+              ${[
+                ['combo',    'Combo + Security', '#10b981', 'rgba(16,185,129,0.15)', 'rgba(16,185,129,0.4)'],
+                ['nvr',      'NVR Only',          '#10b981', 'rgba(16,185,129,0.15)', 'rgba(16,185,129,0.4)'],
+                ['declined', '⚠️ Declined Pkg',  '#f59e0b', 'rgba(245,158,11,0.12)', 'rgba(245,158,11,0.35)'],
+              ].map(([val,label,activeColor,activeBg,activeBorder])=>html`
                 <button key=${val} onClick=${()=>setConfig(val)} style=${{
-                  flex:1, padding:'11px 10px', borderRadius:9, border:'none', cursor:'pointer',
-                  background: config===val ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.04)',
-                  border:`1px solid ${config===val ? 'rgba(16,185,129,0.4)' : 'rgba(255,255,255,0.07)'}`,
-                  color: config===val ? '#10b981' : 'rgba(255,255,255,0.4)',
-                  fontWeight:700, fontSize:13, fontFamily:'inherit',
-                  transition:'all .18s',
+                  flex:1, minWidth:0, padding:'10px 8px', borderRadius:9, border:'none', cursor:'pointer',
+                  background: config===val ? activeBg : 'rgba(255,255,255,0.04)',
+                  border:`1px solid ${config===val ? activeBorder : 'rgba(255,255,255,0.07)'}`,
+                  color: config===val ? activeColor : 'rgba(255,255,255,0.35)',
+                  fontWeight:700, fontSize:12, fontFamily:'inherit',
+                  transition:'all .18s', whiteSpace:'nowrap',
                 }}>${label}</button>
               `)}
             </div>
-            <div style=${{ ...mono, fontSize:9.5, color:'rgba(255,255,255,0.22)', marginTop:8, padding:'8px 12px', background:'rgba(255,255,255,0.02)', borderRadius:7 }}>
-              Panel: <span style=${{ color:'rgba(16,185,129,0.6)' }}>${panelMap[config]}</span>
-            </div>
+            ${config==='declined' && html`
+              <div style=${{ ...mono, fontSize:9.5, color:'rgba(245,158,11,0.55)', marginTop:8, padding:'9px 12px', background:'rgba(245,158,11,0.06)', border:'1px solid rgba(245,158,11,0.15)', borderRadius:7, lineHeight:1.5 }}>
+                ⚠️ Credit declined — customer qualifies for limited packages only
+              </div>
+            `}
+            ${config!=='declined' && html`
+              <div style=${{ ...mono, fontSize:9.5, color:'rgba(255,255,255,0.22)', marginTop:8, padding:'8px 12px', background:'rgba(255,255,255,0.02)', borderRadius:7 }}>
+                Panel: <span style=${{ color:'rgba(16,185,129,0.6)' }}>${panelMap[config]}</span>
+              </div>
+            `}
           </div>
 
           <!-- Package options -->
           <div style=${{ marginBottom:18 }}>
             <div style=${{ ...mono, fontSize:9, color:'rgba(255,255,255,0.22)', letterSpacing:'.12em', marginBottom:10 }}>SELECT PACKAGE</div>
-            <div style=${{ display:'grid', gap:8, gridTemplateColumns:'1fr 1fr' }}>
+            <div style=${{ display:'grid', gap:8, gridTemplateColumns: config==='declined' ? '1fr' : '1fr 1fr' }}>
               ${pkgList.map(pkg => html`
                 <div key=${pkg.id} class="pkg-opt" onClick=${()=>setPkgId(pkg.id)} style=${{
                   padding:'14px 13px', borderRadius:11, cursor:'pointer',
@@ -1032,12 +1067,12 @@ function JobDetail({ job, onClose, onApprove, onDeny }) {
               ${denyLoad ? html`<${Spinner} size=${14} color="#ef4444"/>` : '✕'} Deny
             </button>
             <button onClick=${handleApprove} disabled=${loading||denyLoad} style=${{
-              ...btn('#10b981'), flex:1, fontSize:15.5, padding:'14px',
+              ...btn(config==='declined' ? '#b45309' : '#10b981'), flex:1, fontSize:15.5, padding:'14px',
               display:'flex', alignItems:'center', justifyContent:'center', gap:10,
               opacity: loading ? .75 : 1,
-              boxShadow: '0 0 30px rgba(16,185,129,0.3)',
+              boxShadow: config==='declined' ? '0 0 20px rgba(245,158,11,0.15)' : '0 0 30px rgba(16,185,129,0.3)',
             }}>
-              ${loading ? html`<${Spinner} size=${16} /> Locking in…` : '🛡️  Approve & Lock In Rate'}
+              ${loading ? html`<${Spinner} size=${16} /> Locking in…` : config==='declined' ? '⚠️  Approve Declined Package' : '🛡️  Approve & Lock In Rate'}
             </button>
           </div>
         </div>
